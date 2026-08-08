@@ -17,15 +17,14 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh; /* Минимум на высоту экрана */
+            min-height: 100vh;
             overflow: hidden;
             touch-action: none;
         }
         
-        /* Главный контейнер для центрирования игры с учетом выемок телефона */
         .game-wrapper {
             width: 100%;
-            height: 100dvh; /* Используем Dynamic Viewport Height */
+            height: 100dvh;
             position: relative;
             box-sizing: border-box;
             padding-top: env(safe-area-inset-top, 0);
@@ -46,7 +45,6 @@
             aspect-ratio: 3 / 5; /* Строго вертикальное поле */
         }
 
-        /* UI адаптировано под узкий экран */
         #uiContainer {
             position: absolute;
             top: calc(env(safe-area-inset-top, 0) + 15px);
@@ -127,77 +125,4 @@
             cursor: pointer;
             font-weight: bold;
             letter-spacing: 1px;
-            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
-            transition: all 0.2s ease;
-            transform: scale(1);
-            position: fixed;
-            bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
-        }
-        #restartBtn:hover:not(:disabled) {
-            transform: scale(1.05);
-        }
-
-        #touchHint {
-            position: absolute;
-            bottom: calc(env(safe-area-inset-bottom, 0) + 90px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-size: 16px;
-            color: #FFD700;
-            border: 1px solid #FFD700;
-            animation: pulse 2s infinite;
-            pointer-events: none;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.8; }
-            50% { opacity: 0.4; }
-        }
-    </style>
-</head>
-<body>
-
-<div class="game-wrapper">
-    <canvas id="gameCanvas"></canvas>
-</div>
-
-<div id="uiContainer">
-    <div id="scoreBoard">Счет: 0</div>
-    <div id="highScoreBoard">Рекорд: --</div>
-</div>
-
-<div id="touchHint">Водите пальцем →</div>
-
-<div id="gameOverOverlay">
-    <h1 style="font-size: 52px; margin: 0;">Конец</h1>
-    <div id="finalScoreText"></div>
-    
-    <div id="leaderboardBox">
-        <div id="leaderboardTitle">ТОП РЕЗУЛЬТАТЫ</div>
-        <div id="leaderboardList"></div>
-    </div>
-    
-    <button id="restartBtn">Заново</button>
-</div>
-
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreBoard = document.getElementById('scoreBoard');
-const highScoreBoard = document.getElementById('highScoreBoard');
-const gameOverOverlay = document.getElementById('gameOverOverlay');
-const finalScoreText = document.getElementById('finalScoreText');
-const restartBtn = document.getElementById('restartBtn');
-const leaderboardList = document.getElementById('leaderboardList');
-const touchHint = document.getElementById('touchHint');
-
-// --- Идеальная подгонка под размер экрана ---
-function resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
-    
-    // Берем меньшую сторону как эталон, чтобы влезть точно
-    let targetWidth = Math.min(wrapper.width, wrapper.height * 0.6); 
-    let targetHeight = targetWidth * (5/3);
+            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.
