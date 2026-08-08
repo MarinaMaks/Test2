@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Арканоид: Фиксированный</title>
     
-    <!-- Запрещаем пользователю зумить пальцами -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -20,15 +19,13 @@
             overflow: hidden;
         }
         
-        /* Главный контейнер игры */
         .game-container {
-            width: 320px; /* Базовая ширина */
-            aspect-ratio: 1 / 1.77; /* Вертикальное поле */
+            width: 320px;
+            aspect-ratio: 1 / 1.77;
             position: relative;
             border: 4px solid #FFD700;
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
             overflow: hidden;
-            transform-origin: top left;
         }
 
         canvas {
@@ -38,7 +35,6 @@
             background-color: #000;
         }
 
-        /* UI элементы поверх холста */
         #uiContainer {
             position: absolute;
             top: 15px;
@@ -144,25 +140,24 @@
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const frame = document.getElementById('gameFrame');
 let score = 0, isGameOver = false, animationFrameId = null;
 let paddle = {}, ball = {}, targets = [];
 let targetRadius = 0;
 
-/* --- ИСПРАВЛЕНО: Ровно 6 рядов --- */
+/* --- Ровно 6 рядов --- */
 const rowsCount = 6; 
 let colsCount = 0;
 
-// --- Масштабирование контейнера ---
+// --- Масштабирование ---
 function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     
-    // БАЗОВЫЙ ЛОГИЧЕСКИЙ РАЗМЕР ИГРЫ
-    const BASE_WIDTH = 320;
-    const BASE_HEIGHT = 568;
+    /* Устанавливаем фиксированное логическое разрешение игры */
+    const GAME_LOGIC_WIDTH = 320;
+    const GAME_LOGIC_HEIGHT = 568;
 
-    canvas.width = BASE_WIDTH * dpr;
-    canvas.height = BASE_HEIGHT * dpr;
+    canvas.width = GAME_LOGIC_WIDTH * dpr;
+    canvas.height = GAME_LOGIC_HEIGHT * dpr;
     
     canvas.style.width = '100%';
     canvas.style.height = '100%';
@@ -174,22 +169,26 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// --- Создание объектов ---
+// --- Создание объектов (ИСПРАВЛЕНО) ---
 function createObjects() {
     targets = []; 
     
+    /* Теперь используем реальные размеры холста для расчетов */
+    const cw = canvas.width;
+    const ch = canvas.height;
+
     paddle = {
-        x: BASE_WIDTH / 2 - (BASE_WIDTH * 0.25) / 2,
-        y: BASE_HEIGHT - 70,
-        width: BASE_WIDTH * 0.25,
+        x: cw / 2 - (cw * 0.25) / 2,
+        y: ch - 70,
+        width: cw * 0.25,
         height: 20,
         speed: 8,
-        targetX: BASE_WIDTH / 2 - (BASE_WIDTH * 0.25) / 2
+        targetX: cw / 2 - (cw * 0.25) / 2
     };
 
     ball = {
-        x: BASE_WIDTH / 2,
-        y: BASE_HEIGHT - 90,
+        x: cw / 2,
+        y: ch - 90,
         radius: 10,
         dx: 0,
         dy: 0,
@@ -199,13 +198,11 @@ function createObjects() {
     targetRadius = 16; 
     
     const horizontalSpacePerBall = targetRadius * 2 + 20;
-    colsCount = Math.floor(BASE_WIDTH / horizontalSpacePerBall);
+    colsCount = Math.floor(cw / horizontalSpacePerBall);
     const totalGridWidth = colsCount * horizontalSpacePerBall - 20;
-    const startX = (BASE_WIDTH - totalGridWidth) / 2 + targetRadius;
-    
-    /* Подняли ряды выше (было 60), чтобы они не касались арканоида при промахе */
-    const startY = 80; 
-    const verticalStep = targetRadius * 2 + 25; /* Увеличили шаг по вертикали */
+    const startX = (cw - totalGridWidth) / 2 + targetRadius;
+    const startY = 80;
+    const verticalStep = targetRadius * 2 + 25;
 
     for (let r = 0; r < rowsCount; r++) {
         for (let c = 0; c < colsCount; c++) {
@@ -230,21 +227,21 @@ function drawBall() { ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, M
 function drawTargets() { targets.forEach(t=>{ if(t.status===1){ ctx.beginPath(); ctx.arc(t.x,t.y,t.radius,0,Math.PI*2); ctx.fillStyle=t.color; ctx.shadowColor=t.color; ctx.shadowBlur=15; ctx.fill(); ctx.closePath(); ctx.shadowBlur=0; }}); }
 
 // --- Игровая логика ---
-function movePaddleTo(x) { if(isGameOver) return; paddle.targetX = Math.max(0, Math.min(x - paddle.width/2, BASE_WIDTH - paddle.width)); }
+function movePaddleTo(x) { if(isGameOver) return; paddle.targetX = Math.max(0, Math.min(x - paddle.width/2, canvas.width - paddle.width)); }
 function updatePaddlePosition() { const diff = paddle.targetX - paddle.x; paddle.x += diff * 0.2; }
 function circleCollision(cX,cY,cR,tX,tY,tR) { return (cX-tX)**2 + (cY-tY)**2 < (cR+tR)**2; }
-function resolveWallCollisions() { if(ball.x+ball.dx>BASE_WIDTH-ball.radius||ball.x+ball.dx<ball.radius) ball.dx=-ball.dx; if(ball.y+ball.dy<ball.radius) ball.dy=-ball.dy; }
+function resolveWallCollisions() { if(ball.x+ball.dx>canvas.width-ball.radius||ball.x+ball.dx<ball.radius) ball.dx=-ball.dx; if(ball.y+ball.dy<ball.radius) ball.dy=-ball.dy; }
 
 function collisionDetection() {
     resolveWallCollisions();
-    if(ball.y+ball.dy>BASE_HEIGHT-ball.radius-paddle.height){ if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){ let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2); ball.dx=hitPos*7; ball.dy=-Math.abs(ball.dy)*1.05; if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9; }}
-    if(ball.y-ball.radius>BASE_HEIGHT){ endGame(); return; }
+    if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){ if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){ let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2); ball.dx=hitPos*7; ball.dy=-Math.abs(ball.dy)*1.05; if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9; }}
+    if(ball.y-ball.radius>canvas.height){ endGame(); return; }
     targets.forEach(target=>{ if(target.status===1&&circleCollision(ball.x,ball.y,ball.radius,target.x,target.y,target.radius)){ target.status=0; const absDX=Math.abs(ball.x-target.x),absDY=Math.abs(ball.y-target.y); if(absDX>absDY)ball.dx=-ball.dx; else ball.dy=-ball.dy; score+=10; scoreBoard.innerHTML='Счет: '+score; }});
     if(targets.every(t=>t.status===0)){ alert('ПОБЕДА!'); resetGame(); }
 }
 function endGame() { cancelAnimationFrame(animationFrameId); isGameOver=true; checkNewHighScore(score); finalScoreText.innerHTML=`Вы набрали: ${score} очков`; renderLeaderboard(); gameOverOverlay.style.display='flex'; touchHint.style.display='none'; }
-function resetGame() { score=0; isGameOver=false; scoreBoard.innerHTML='Счет: 0'; ball.x=BASE_WIDTH/2; ball.y=BASE_HEIGHT-90; ball.dx=0; ball.dy=0; paddle.x=BASE_WIDTH/2-paddle.width/2; paddle.targetX=paddle.x; createObjects(); gameOverOverlay.style.display='none'; touchHint.style.display='block'; }
-function loop() { ctx.clearRect(0,0,BASE_WIDTH,BASE_HEIGHT); updatePaddlePosition(); drawTargets(); drawBall(); drawPaddle(); if(!isGameOver){ collisionDetection(); if(ball.dx!==0||ball.dy!==0){ ball.x+=ball.dx; ball.y+=ball.dy; } animationFrameId=requestAnimationFrame(loop); } }
+function resetGame() { score=0; isGameOver=false; scoreBoard.innerHTML='Счет: 0'; ball.x=canvas.width/2; ball.y=canvas.height-90; ball.dx=0; ball.dy=0; paddle.x=canvas.width/2-paddle.width/2; paddle.targetX=paddle.x; createObjects(); gameOverOverlay.style.display='none'; touchHint.style.display='block'; }
+function loop() { ctx.clearRect(0,0,canvas.width,canvas.height); updatePaddlePosition(); drawTargets(); drawBall(); drawPaddle(); if(!isGameOver){ collisionDetection(); if(ball.dx!==0||ball.dy!==0){ ball.x+=ball.dx; ball.y+=ball.dy; } animationFrameId=requestAnimationFrame(loop); } }
 
 // --- Управление ---
 let lastTouchX = 0;
