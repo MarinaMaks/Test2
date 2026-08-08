@@ -2,10 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Арканоид: Vertical Mobile</title>
+    <title>Арканоид: Вертикальный</title>
     
-    <!-- Оптимизация -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- Правильный viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
 
@@ -17,83 +17,93 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* Минимум на высоту экрана */
             overflow: hidden;
             touch-action: none;
         }
         
-        /* Вертикальное соотношение сторон */
+        /* Главный контейнер для центрирования игры с учетом выемок телефона */
+        .game-wrapper {
+            width: 100%;
+            height: 100dvh; /* Используем Dynamic Viewport Height */
+            position: relative;
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0);
+            padding-bottom: env(safe-area-inset-bottom, 0);
+            padding-left: env(safe-area-inset-left, 0);
+            padding-right: env(safe-area-inset-right, 0);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         canvas {
             background-color: #000;
             border: 4px solid #FFD700;
             box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
-            width: 100vw; /* На всю ширину устройства */
-            height: 100vh; /* На всю высоту устройства */
-            max-height: 100dvh; /* Для современных браузеров Dynamic Viewport Height */
-            aspect-ratio: 3 / 5; /* Узкое и высокое поле */
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 3 / 5; /* Строго вертикальное поле */
         }
 
-        /* UI элементы крупным планом */
+        /* UI адаптировано под узкий экран */
         #uiContainer {
             position: absolute;
-            top: env(safe-area-inset-top, 0) 20px;
+            top: calc(env(safe-area-inset-top, 0) + 15px);
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 25px;
+            gap: 20px;
             z-index: 10;
             pointer-events: none;
-            flex-wrap: wrap;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
         }
         #scoreBoard, #highScoreBoard {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 12px 18px;
             border-radius: 12px;
             text-align: center;
-            font-size: 22px;
+            font-size: 20px;
             font-weight: bold;
             color: #fff;
             border: 2px solid #444;
             backdrop-filter: blur(5px);
-            min-width: 150px;
             pointer-events: auto;
+            min-width: 140px;
         }
 
         #gameOverOverlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            inset: 0;
             background: rgba(0, 0, 0, 0.95);
             display: none;
             justify-content: flex-start;
             align-items: center;
             flex-direction: column;
-            gap: 25px;
+            gap: 20px;
             z-index: 20;
             color: #fff;
             text-align: center;
-            padding: 20px 20px 100px; /* Больше отступа снизу для пальца */
+            padding: 30px 20px 120px;
             box-sizing: border-box;
         }
         #finalScoreText {
-            font-size: 30px;
+            font-size: 28px;
             color: #ccc;
             margin-bottom: 10px;
         }
         #leaderboardBox {
             background: rgba(20, 20, 20, 0.9);
-            padding: 25px;
+            padding: 20px;
             border-radius: 15px;
             border: 2px solid #FFD700;
             width: 90%;
-            max-height: 60vh;
+            max-height: 50vh;
             overflow-y: auto;
         }
         #leaderboardTitle {
-            font-size: 28px;
+            font-size: 26px;
             margin-bottom: 15px;
             color: #FFD700;
         }
@@ -101,67 +111,67 @@
             display: flex;
             justify-content: space-between;
             padding: 10px 0;
-            font-size: 24px;
+            font-size: 22px;
             border-bottom: 1px dashed #444;
         }
-        .lb-item:last-child { border-bottom: none; }
         .lb-rank { font-weight: bold; color: #aaa; min-width: 40px; }
         .lb-score { font-weight: bold; }
 
         #restartBtn {
-            padding: 20px 50px;
-            font-size: 26px;
+            padding: 18px 40px;
+            font-size: 24px;
             background: linear-gradient(45deg, #FFD700, #FFA500);
             color: #000;
             border: none;
             border-radius: 50px;
             cursor: pointer;
             font-weight: bold;
-            text-transform: uppercase;
             letter-spacing: 1px;
             box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
             transition: all 0.2s ease;
             transform: scale(1);
             position: fixed;
-            bottom: env(safe-area-inset-bottom, 0) 30px;
+            bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
         }
         #restartBtn:hover:not(:disabled) {
             transform: scale(1.05);
-            box-shadow: 0 8px 20px rgba(255, 215, 0, 0.5);
-        }
-        #restartBtn:active:not(:disabled) {
-            transform: scale(0.98);
         }
 
         #touchHint {
             position: absolute;
-            bottom: env(safe-area-inset-bottom, 0) 100px;
+            bottom: calc(env(safe-area-inset-bottom, 0) + 90px);
             left: 50%;
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.6);
-            padding: 12px 25px;
-            border-radius: 30px;
+            padding: 10px 20px;
+            border-radius: 25px;
             font-size: 16px;
             color: #FFD700;
             border: 1px solid #FFD700;
             animation: pulse 2s infinite;
             pointer-events: none;
         }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.4; }
+        }
     </style>
 </head>
 <body>
+
+<div class="game-wrapper">
+    <canvas id="gameCanvas"></canvas>
+</div>
 
 <div id="uiContainer">
     <div id="scoreBoard">Счет: 0</div>
     <div id="highScoreBoard">Рекорд: --</div>
 </div>
 
-<canvas id="gameCanvas"></canvas>
-
-<div id="touchHint">Водите пальцем ↑↓</div>
+<div id="touchHint">Водите пальцем →</div>
 
 <div id="gameOverOverlay">
-    <h1 style="font-size: 56px; margin: 0;">Конец</h1>
+    <h1 style="font-size: 52px; margin: 0;">Конец</h1>
     <div id="finalScoreText"></div>
     
     <div id="leaderboardBox">
@@ -183,47 +193,11 @@ const restartBtn = document.getElementById('restartBtn');
 const leaderboardList = document.getElementById('leaderboardList');
 const touchHint = document.getElementById('touchHint');
 
-// --- Адаптивная настройка размера ---
+// --- Идеальная подгонка под размер экрана ---
 function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
-    // Используем реальные размеры видимой области
-    let vw = window.innerWidth;
-    let vh = window.innerHeight;
+    const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
     
-    canvas.width = vw * dpr;
-    canvas.height = vh * dpr;
-    canvas.style.width = vw + 'px';
-    canvas.style.height = vh + 'px';
-    
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-// --- Объекты (адаптация под высокую ракетку) ---
-const paddle = {
-    x: 0,
-    y: canvas.height - 100, /* Ракетка выше от края */
-    width: 140, /* Уже, чем в широкой версии */
-    height: 30, /* Выше/толще */
-    speed: canvas.width * 0.025,
-    targetX: 0
-};
-
-const ball = {
-    x: canvas.width / 2,
-    y: canvas.height - 120,
-    radius: 12,
-    dx: 0,
-    dy: 0,
-    speed: 6
-};
-
-let targets = [];
-const targetRadius = 20;
-const rowsCount = 8; /* Увеличено с 6 до 8 рядов! */
-let colsCount = 0;
-
-let score = 0;
-let isGameOver = false;
-let animationFrameId = null;
+    // Берем меньшую сторону как эталон, чтобы влезть точно
+    let targetWidth = Math.min(wrapper.width, wrapper.height * 0.6); 
+    let targetHeight = targetWidth * (5/3);
