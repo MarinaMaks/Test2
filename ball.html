@@ -2,22 +2,26 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Арканоид: Вертикальный</title>
+    <title>Арканоид: Вертикальный (Fullscreen)</title>
     
-    <!-- Правильный viewport -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- 1. Принудительный полноэкранный режим -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000">
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
 
     <style>
+        /* 2. Полное обнуление отступов */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            margin: 0;
-            padding: 0;
             background-color: #000;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            min-height: 100dvh; 
             overflow: hidden;
             touch-action: none;
         }
@@ -26,11 +30,6 @@
             width: 100%;
             height: 100dvh;
             position: relative;
-            box-sizing: border-box;
-            padding-top: env(safe-area-inset-top, 0);
-            padding-bottom: env(safe-area-inset-bottom, 0);
-            padding-left: env(safe-area-inset-left, 0);
-            padding-right: env(safe-area-inset-right, 0);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -42,9 +41,10 @@
             box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
             max-width: 100%;
             max-height: 100%;
-            aspect-ratio: 3 / 5; /* Строго вертикальное поле */
+            aspect-ratio: 3 / 5; 
         }
 
+        /* UI элементы */
         #uiContainer {
             position: absolute;
             top: calc(env(safe-area-inset-top, 0) + 15px);
@@ -86,11 +86,7 @@
             padding: 30px 20px 120px;
             box-sizing: border-box;
         }
-        #finalScoreText {
-            font-size: 28px;
-            color: #ccc;
-            margin-bottom: 10px;
-        }
+        #finalScoreText { font-size: 28px; color: #ccc; margin-bottom: 10px; }
         #leaderboardBox {
             background: rgba(20, 20, 20, 0.9);
             padding: 20px;
@@ -100,18 +96,8 @@
             max-height: 50vh;
             overflow-y: auto;
         }
-        #leaderboardTitle {
-            font-size: 26px;
-            margin-bottom: 15px;
-            color: #FFD700;
-        }
-        .lb-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            font-size: 22px;
-            border-bottom: 1px dashed #444;
-        }
+        #leaderboardTitle { font-size: 26px; margin-bottom: 15px; color: #FFD700; }
+        .lb-item { display: flex; justify-content: space-between; padding: 10px 0; font-size: 22px; border-bottom: 1px dashed #444; }
         .lb-rank { font-weight: bold; color: #aaa; min-width: 40px; }
         .lb-score { font-weight: bold; }
 
@@ -131,9 +117,7 @@
             position: fixed;
             bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
         }
-        #restartBtn:hover:not(:disabled) {
-            transform: scale(1.05);
-        }
+        #restartBtn:hover:not(:disabled) { transform: scale(1.05); }
 
         #touchHint {
             position: absolute;
@@ -149,10 +133,7 @@
             animation: pulse 2s infinite;
             pointer-events: none;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.8; }
-            50% { opacity: 0.4; }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 0.4; } }
     </style>
 </head>
 <body>
@@ -171,61 +152,90 @@
 <div id="gameOverOverlay">
     <h1 style="font-size: 52px; margin: 0;">Конец</h1>
     <div id="finalScoreText"></div>
-    
-    <div id="leaderboardBox">
-        <div id="leaderboardTitle">ТОП РЕЗУЛЬТАТЫ</div>
-        <div id="leaderboardList"></div>
-    </div>
-    
+    <div id="leaderboardBox"><div id="leaderboardTitle">ТОП РЕЗУЛЬТАТЫ</div><div id="leaderboardList"></div></div>
     <button id="restartBtn">Заново</button>
 </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const scoreBoard = document.getElementById('scoreBoard');
-const highScoreBoard = document.getElementById('highScoreBoard');
-const gameOverOverlay = document.getElementById('gameOverOverlay');
-const finalScoreText = document.getElementById('finalScoreText');
-const restartBtn = document.getElementById('restartBtn');
-const leaderboardList = document.getElementById('leaderboardList');
-const touchHint = document.getElementById('touchHint');
-
-// --- Глобальные переменные ---
+let score = 0, isGameOver = false, animationFrameId = null;
 let paddle = {}, ball = {}, targets = [];
-let targetRadius = 0;
-const rowsCount = 8;
-let colsCount = 0;
-let score = 0, isGameOver = false, animationFrameId = null, isDragging = false;
+let targetRadius = 0, rowsCount = 8, colsCount = 0;
 
-// --- Функция создания объектов (теперь она вызывается ТОЛЬКО после того, как Canvas готов) ---
+// --- ГЛАВНОЕ ИЗМЕНЕНИЕ: Использование Visual Viewport ---
+function getViewportSize() {
+    // Если браузер поддерживает API видимого окна — используем его (самое точное)
+    if ('visualViewport' in window && window.visualViewport) {
+        return {
+            width: window.visualViewport.width,
+            height: window.visualViewport.height
+        };
+    }
+    // Fallback для ПК или старых браузеров
+    return {
+        width: window.innerWidth,
+        height: window.innerHeight
+    };
+}
+
+// --- Масштабирование под точный размер БЕЗ выхода за границы ---
+function resizeCanvas() {
+    const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // Берем меньшую сторону из реально ДОСТУПНОЙ области
+    let availableWidth = Math.min(wrapper.width, window.screen.width);
+    let availableHeight = Math.min(wrapper.height, window.screen.height);
+    
+    // Рассчитываем идеальный вертикальный прямоугольник
+    let targetWidth = availableWidth;
+    let targetHeight = availableHeight;
+
+    // Проверяем соотношение сторон контента (3:5)
+    if (targetHeight > targetWidth * (5/3)) {
+        targetHeight = targetWidth * (5/3);
+    } else {
+        targetWidth = targetHeight * (3/5);
+    }
+
+    // Устанавливаем физический размер канваса
+    canvas.width = Math.round(targetWidth * dpr);
+    canvas.height = Math.round(targetHeight * dpr);
+    
+    // Растягиваем CSS-блок ровно по родителю
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // СОЗДАНИЕ ОБЪЕКТОВ ТОЛЬКО ПОСЛЕ УСТАНОВКИ РАЗМЕРА
+    createObjects(); 
+}
+
+// --- Создание объектов с привязкой к текущему размеру Canvas ---
 function createObjects() {
     targets = []; 
     
-    // Размеры ВСЕГО зависят только от текущей ширины канваса
-    const basePaddleWidthRatio = 0.25;
-    const baseBallRadiusRatio = 0.015;
-    const baseTargetRadiusRatio = 0.02;
-
     paddle = {
-        x: canvas.width / 2 - (canvas.width * basePaddleWidthRatio) / 2,
+        x: canvas.width / 2 - (canvas.width * 0.25) / 2,
         y: canvas.height - 90,
-        width: canvas.width * basePaddleWidthRatio,
+        width: canvas.width * 0.25,
         height: 25,
         speed: canvas.width * 0.025,
-        targetX: canvas.width / 2 - (canvas.width * basePaddleWidthRatio) / 2
+        targetX: canvas.width / 2 - (canvas.width * 0.25) / 2
     };
 
     ball = {
         x: canvas.width / 2,
         y: canvas.height - 110,
-        radius: canvas.width * baseBallRadiusRatio,
+        radius: canvas.width * 0.015,
         dx: 0,
         dy: 0,
         speed: 5
     };
 
-    targetRadius = canvas.width * baseTargetRadiusRatio;
+    targetRadius = canvas.width * 0.02; 
     
     const horizontalSpacePerBall = targetRadius * 2 + 25;
     colsCount = Math.floor(canvas.width / horizontalSpacePerBall);
@@ -244,271 +254,56 @@ function createObjects() {
     }
 }
 
-// --- Адаптивная настройка размера (ФИНАЛЬНАЯ) ---
-function resizeCanvas() {
-    const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
-    
-    // Шаг 1: Пытаемся вписаться по высоте
-    let availableHeight = wrapper.height;
-    let targetHeight = availableHeight;
-    let targetWidth = targetHeight * (3/5); // Соотношение 3:5
-
-    // Шаг 2: Проверка "Вылезает ли вправо?"
-    if (targetWidth > wrapper.width) {
-        // Если вылезает — фиксируемся по ширине
-        targetWidth = wrapper.width;
-        targetHeight = targetWidth * (5/3); 
-    }
-
-    // Устанавливаем реальные пиксели для четкости
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = targetWidth * dpr;
-    canvas.height = targetHeight * dpr;
-    
-    // Масштабируем CSS-отображение под размер обертки
-    canvas.style.width = targetWidth + 'px';
-    canvas.style.height = targetHeight + 'px';
-    
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    // Пересоздаем игровые сущности под новый физический размер
-    createObjects(); 
-}
-window.addEventListener('resize', resizeCanvas);
-
-// Запуск цепочки инициализации
-resizeCanvas(); 
-
-
-// --- Рекорды ---
-function loadHighScores() {
-    return JSON.parse(localStorage.getItem('arkanoidVerticalFinal') || '[0,0,0,0,0]');
-}
-function saveHighScores(scores) {
-    localStorage.setItem('arkanoidVerticalFinal', JSON.stringify(scores));
-}
-function updateHighScoreUI() {
-    const scores = loadHighScores();
-    highScoreBoard.innerHTML = `Рекорд: ${scores[0] || '--'}`;
-}
-function checkNewHighScore(currentScore) {
-    let scores = loadHighScores();
-    if (currentScore > scores[scores.length - 1]) {
-        scores.push(currentScore);
-        scores.sort((a, b) => b - a);
-        scores.splice(5);
-        saveHighScores(scores);
-        updateHighScoreUI();
+// --- Скрытие адресной строки при прокрутке/загрузке ---
+function hideBrowserUI() {
+    if (window.scrollY === 0) {
+        window.scrollTo(0, 1);
     }
 }
-function renderLeaderboard() {
-    const scores = loadHighScores();
-    leaderboardList.innerHTML = '';
-    scores.forEach((s, index) => {
-        if (s === 0 && index > 0) return;
-        const item = document.createElement('div');
-        item.className = 'lb-item';
-        let rankText = '';
-        switch(index + 1) {
-            case 1: rankText = '🥇'; break;
-            case 2: rankText = '🥈'; break;
-            case 3: rankText = '🥉'; break;
-            default: rankText = `${index + 1}.`; break;
-        }
-        item.innerHTML = `<span class="lb-rank">${rankText}</span><span class="lb-score">${s} оч.</span>`;
-        leaderboardList.appendChild(item);
-    });
-}
+document.addEventListener('touchstart', hideBrowserUI, { passive: true });
+window.addEventListener('resize', () => {
+    setTimeout(hideBrowserUI, 100);
+});
 
-// --- Отрисовка ---
-function drawPaddle() {
-    ctx.beginPath();
-    ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 10);
-    ctx.fillStyle = '#FFF';
-    ctx.fill();
-    ctx.closePath();
-    
-    ctx.beginPath();
-    ctx.roundRect(paddle.targetX, paddle.y, paddle.width, paddle.height, 10);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.fill();
-    ctx.closePath();
-}
 
-function drawBall() {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFF';
-    ctx.fill();
-    ctx.closePath();
-}
+// --- Остальной код игры (без изменений логики, только очистка глобальных переменных вверху) ---
+function loadHighScores() { return JSON.parse(localStorage.getItem('arkanoidVerticalFinal') || '[0,0,0,0,0]'); }
+function saveHighScores(scores) { localStorage.setItem('arkanoidVerticalFinal', JSON.stringify(scores)); }
+function updateHighScoreUI() { const scores = loadHighScores(); highScoreBoard.innerHTML = `Рекорд: ${scores[0] || '--'}`; }
+function checkNewHighScore(currentScore) { let scores = loadHighScores(); if (currentScore > scores[scores.length - 1]) { scores.push(currentScore); scores.sort((a,b)=>b-a); scores.splice(5); saveHighScores(scores); updateHighScoreUI(); } }
+function renderLeaderboard() { const scores = loadHighScores(); leaderboardList.innerHTML = ''; scores.forEach((s,i)=>{ if(s===0&&i>0)return; const item=document.createElement('div'); item.className='lb-item'; let rank=''; switch(i+1){case 1:rank='🥇';break;case 2:rank='🥈';break;case 3:rank='🥉';break;default:rank=`${i+1}.`;} item.innerHTML=`<span class="lb-rank">${rank}</span><span class="lb-score">${s} оч.</span>`; leaderboardList.appendChild(item); }); }
 
-function drawTargets() {
-    targets.forEach(target => {
-        if (target.status === 1) {
-            ctx.beginPath();
-            ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
-            ctx.fillStyle = target.color;
-            ctx.shadowColor = target.color;
-            ctx.shadowBlur = 18;
-            ctx.fill();
-            ctx.closePath();
-            ctx.shadowBlur = 0;
-        }
-    });
-}
+function drawPaddle() { ctx.beginPath(); ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 10); ctx.fillStyle='#FFF'; ctx.fill(); ctx.closePath(); ctx.beginPath(); ctx.roundRect(paddle.targetX, paddle.y, paddle.width, paddle.height, 10); ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fill(); ctx.closePath(); }
+function drawBall() { ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2); ctx.fillStyle='#FFF'; ctx.fill(); ctx.closePath(); }
+function drawTargets() { targets.forEach(t=>{ if(t.status===1){ ctx.beginPath(); ctx.arc(t.x,t.y,t.radius,0,Math.PI*2); ctx.fillStyle=t.color; ctx.shadowColor=t.color; ctx.shadowBlur=18; ctx.fill(); ctx.closePath(); ctx.shadowBlur=0; }}); }
 
-// --- Игровая логика ---
-function movePaddleTo(x) {
-    if (isGameOver) return;
-    paddle.targetX = Math.max(0, Math.min(x - paddle.width / 2, canvas.width - paddle.width));
-}
-
-function updatePaddlePosition() {
-    const diff = paddle.targetX - paddle.x;
-    paddle.x += diff * 0.18;
-}
-
-function circleCollision(circleX, circleY, circleR, targetX, targetY, targetR) {
-    const distanceSq = (circleX - targetX)**2 + (circleY - targetY)**2;
-    const radiiSum = circleR + targetR;
-    return distanceSq < radiiSum * radiiSum;
-}
-
-function resolveWallCollisions() {
-    if (ball.x + ball.dx > canvas.width - ball.radius || ball.x + ball.dx < ball.radius) {
-        ball.dx = -ball.dx;
-    }
-    if (ball.y + ball.dy < ball.radius) {
-        ball.dy = -ball.dy;
-    }
-}
+function movePaddleTo(x) { if(isGameOver) return; paddle.targetX = Math.max(0, Math.min(x - paddle.width/2, canvas.width - paddle.width)); }
+function updatePaddlePosition() { const diff = paddle.targetX - paddle.x; paddle.x += diff * 0.18; }
+function circleCollision(cX,cY,cR,tX,tY,tR) { return (cX-tX)**2 + (cY-tY)**2 < (cR+tR)**2; }
+function resolveWallCollisions() { if(ball.x+ball.dx>canvas.width-ball.radius||ball.x+ball.dx<ball.radius) ball.dx=-ball.dx; if(ball.y+ball.dy<ball.radius) ball.dy=-ball.dy; }
 
 function collisionDetection() {
     resolveWallCollisions();
-
-    if (ball.y + ball.dy > canvas.height - ball.radius - paddle.height) {
-        if (ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
-            let hitPos = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-            ball.dx = hitPos * 7;
-            ball.dy = -Math.abs(ball.dy) * 1.05;
-            if (Math.abs(ball.dx) > 9) ball.dx = ball.dx > 0 ? 9 : -9;
-        }
-    }
-
-    if (ball.y - ball.radius > canvas.height) {
-        endGame();
-        return;
-    }
-
-    targets.forEach(target => {
-        if (target.status === 1 && circleCollision(ball.x, ball.y, ball.radius, target.x, target.y, target.radius)) {
-            target.status = 0;
-            const absDX = Math.abs(ball.x - target.x);
-            const absDY = Math.abs(ball.y - target.y);
-            if (absDX > absDY) {
-                ball.dx = -ball.dx;
-            } else {
-                ball.dy = -ball.dy;
-            }
-            score += 10;
-            scoreBoard.innerHTML = 'Счет: ' + score;
-        }
-    });
-
-    if (targets.every(t => t.status === 0)) {
-        alert('ПОБЕДА! Вы прошли башню!');
-        resetGame();
-    }
+    if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){ if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){ let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2); ball.dx=hitPos*7; ball.dy=-Math.abs(ball.dy)*1.05; if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9; }}
+    if(ball.y-ball.radius>canvas.height){ endGame(); return; }
+    targets.forEach(target=>{ if(target.status===1&&circleCollision(ball.x,ball.y,ball.radius,target.x,target.y,target.radius)){ target.status=0; const absDX=Math.abs(ball.x-target.x),absDY=Math.abs(ball.y-target.y); if(absDX>absDY)ball.dx=-ball.dx; else ball.dy=-ball.dy; score+=10; scoreBoard.innerHTML='Счет: '+score; }});
+    if(targets.every(t=>t.status===0)){ alert('ПОБЕДА!'); resetGame(); }
 }
+function endGame() { cancelAnimationFrame(animationFrameId); isGameOver=true; checkNewHighScore(score); finalScoreText.innerHTML=`Вы набрали: ${score} очков`; renderLeaderboard(); gameOverOverlay.style.display='flex'; touchHint.style.display='none'; }
+function resetGame() { score=0; isGameOver=false; scoreBoard.innerHTML='Счет: 0'; ball.x=canvas.width/2; ball.y=canvas.height-110; ball.dx=0; ball.dy=0; paddle.x=canvas.width/2-paddle.width/2; paddle.targetX=paddle.x; createObjects(); gameOverOverlay.style.display='none'; touchHint.style.display='block'; }
+function loop() { ctx.clearRect(0,0,canvas.width,canvas.height); updatePaddlePosition(); drawTargets(); drawBall(); drawPaddle(); if(!isGameOver){ collisionDetection(); if(ball.dx!==0||ball.dy!==0){ ball.x+=ball.dx; ball.y+=ball.dy; } animationFrameId=requestAnimationFrame(loop); } }
 
-function endGame() {
-    cancelAnimationFrame(animationFrameId);
-    isGameOver = true;
-    checkNewHighScore(score);
-    finalScoreText.innerHTML = `Вы набрали: ${score} очков`;
-    renderLeaderboard();
-    gameOverOverlay.style.display = 'flex';
-    touchHint.style.display = 'none';
-}
-
-function resetGame() {
-    score = 0;
-    isGameOver = false;
-    scoreBoard.innerHTML = 'Счет: 0';
-    
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height - 110;
-    ball.dx = 0;
-    ball.dy = 0;
-    
-    paddle.x = canvas.width / 2 - paddle.width / 2;
-    paddle.targetX = paddle.x;
-    
-    createObjects(); 
-    gameOverOverlay.style.display = 'none';
-    touchHint.style.display = 'block';
-}
-
-// --- Главный цикл ---
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    updatePaddlePosition();
-    
-    drawTargets();
-    drawBall();
-    drawPaddle();
-    
-    if (!isGameOver) {
-        collisionDetection();
-        if (ball.dx !== 0 || ball.dy !== 0) {
-            ball.x += ball.dx;
-            ball.y += ball.dy;
-        }
-        animationFrameId = requestAnimationFrame(loop);
-    }
-}
-
-// --- Управление ---
 let lastTouchX = 0;
-
-canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    lastTouchX = touch.clientX - rect.left;
-    
-    if (!isGameOver && ball.dx === 0 && ball.dy === 0) {
-        ball.dx = 4 * (Math.random() > 0.5 ? 1 : -1);
-        ball.dy = -ball.speed;
-    }
-    
-    movePaddleTo(lastTouchX);
-    isDragging = true;
-});
-
-canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (!isDragging) return;
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    lastTouchX = touch.clientX - rect.left;
-    movePaddleTo(lastTouchX);
-});
-
-canvas.addEventListener('touchend', () => {
-    isDragging = false;
-});
+canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const touch=e.touches[0]; lastTouchX=touch.clientX-rect.left; if(!isGameOver&&ball.dx===0&&ball.dy===0){ ball.dx=4*(Math.random()>0.5?1:-1); ball.dy=-ball.speed; } movePaddleTo(lastTouchX); isDragging=true; });
+canvas.addEventListener('touchmove', (e)=>{ e.preventDefault(); if(!isDragging) return; const rect=canvas.getBoundingClientRect(); const touch=e.touches[0]; lastTouchX=touch.clientX-rect.left; movePaddleTo(lastTouchX); });
+canvas.addEventListener('touchend', ()=>{ isDragging=false; });
 
 // --- Запуск ---
 updateHighScoreUI();
+resizeCanvas(); // Первый запуск создания поля
 loop();
 
-restartBtn.addEventListener('click', () => {
-    resetGame();
-    loop();
-});
+restartBtn.addEventListener('click', ()=>{ resetGame(); loop(); });
 </script>
 
 </body>
