@@ -169,14 +169,14 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// --- Создание объектов (ИСПРАВЛЕНО) ---
+// --- Создание объектов (ИСПРАВЛЕНО ПОРЯДОК ОБЪЯВЛЕНИЯ) ---
 function createObjects() {
     targets = []; 
     
-    /* Теперь используем реальные размеры холста для расчетов */
     const cw = canvas.width;
     const ch = canvas.height;
 
+    /* Сначала полностью создаем объект со ВСЕМИ свойствами */
     paddle = {
         x: cw / 2 - (cw * 0.25) / 2,
         y: ch - 70,
@@ -232,11 +232,32 @@ function updatePaddlePosition() { const diff = paddle.targetX - paddle.x; paddle
 function circleCollision(cX,cY,cR,tX,tY,tR) { return (cX-tX)**2 + (cY-tY)**2 < (cR+tR)**2; }
 function resolveWallCollisions() { if(ball.x+ball.dx>canvas.width-ball.radius||ball.x+ball.dx<ball.radius) ball.dx=-ball.dx; if(ball.y+ball.dy<ball.radius) ball.dy=-ball.dy; }
 
+/* ИСПРАВЛЕНО: используем готовое свойство paddle.height */
 function collisionDetection() {
     resolveWallCollisions();
-    if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){ if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){ let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2); ball.dx=hitPos*7; ball.dy=-Math.abs(ball.dy)*1.05; if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9; }}
+    
+    /* Теперь paddle.height существует, ошибки нет */
+    if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){
+        if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){
+            let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2);
+            ball.dx=hitPos*7;
+            ball.dy=-Math.abs(ball.dy)*1.05;
+            if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9;
+        }
+    }
+    
     if(ball.y-ball.radius>canvas.height){ endGame(); return; }
-    targets.forEach(target=>{ if(target.status===1&&circleCollision(ball.x,ball.y,ball.radius,target.x,target.y,target.radius)){ target.status=0; const absDX=Math.abs(ball.x-target.x),absDY=Math.abs(ball.y-target.y); if(absDX>absDY)ball.dx=-ball.dx; else ball.dy=-ball.dy; score+=10; scoreBoard.innerHTML='Счет: '+score; }});
+    
+    targets.forEach(target=>{
+        if(target.status===1&&circleCollision(ball.x,ball.y,ball.radius,target.x,target.y,target.radius)){
+            target.status=0;
+            const absDX=Math.abs(ball.x-target.x),absDY=Math.abs(ball.y-target.y);
+            if(absDX>absDY)ball.dx=-ball.dx; else ball.dy=-ball.dy;
+            score+=10;
+            scoreBoard.innerHTML='Счет: '+score;
+        }
+    });
+    
     if(targets.every(t=>t.status===0)){ alert('ПОБЕДА!'); resetGame(); }
 }
 function endGame() { cancelAnimationFrame(animationFrameId); isGameOver=true; checkNewHighScore(score); finalScoreText.innerHTML=`Вы набрали: ${score} очков`; renderLeaderboard(); gameOverOverlay.style.display='flex'; touchHint.style.display='none'; }
