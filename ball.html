@@ -125,4 +125,391 @@
             cursor: pointer;
             font-weight: bold;
             letter-spacing: 1px;
-            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.
+            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+            transition: all 0.2s ease;
+            transform: scale(1);
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
+        }
+        #restartBtn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+
+        #touchHint {
+            position: absolute;
+            bottom: calc(env(safe-area-inset-bottom, 0) + 90px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 16px;
+            color: #FFD700;
+            border: 1px solid #FFD700;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-wrapper">
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="uiContainer">
+    <div id="scoreBoard">Счет: 0</div>
+    <div id="highScoreBoard">Рекорд: --</div>
+</div>
+
+<div id="touchHint">Водите пальцем →</div>
+
+<div id="gameOverOverlay">
+    <h1 style="font-size: 52px; margin: 0;">Конец</h1>
+    <div id="finalScoreText"></div>
+    
+    <div id="leaderboardBox">
+        <div id="leaderboardTitle">ТОП РЕЗУЛЬТАТЫ</div>
+        <div id="leaderboardList"></div>
+    </div>
+    
+    <button id="restartBtn">Заново</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreBoard = document.getElementById('scoreBoard');
+const highScoreBoard = document.getElementById('highScoreBoard');
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const finalScoreText = document.getElementById('finalScoreText');
+const restartBtn = document.getElementById('restartBtn');
+const leaderboardList = document.getElementById('leaderboardList');
+const touchHint = document.getElementById('touchHint');
+
+// --- Глобальные переменные объектов (пустые шаблоны) ---
+let paddle = {};
+let ball = {};
+let targets = [];
+let targetRadius = 0;
+const rowsCount = 8;
+let colsCount = 0;
+
+let score = 0;
+let isGameOver = false;
+let animationFrameId = null;
+let isDragging = false;
+
+// --- Функция создания ВСЕХ объектов на основе текущего размера Canvas ---
+function createObjects() {
+    // Очищаем старые цели перед перерасчетом
+    targets = []; 
+
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Ракетка привязана к низу видимой области
+    paddle = {
+        x: canvas.width / 2 - (canvas.width * 0.25) / 2,
+        y: canvas.height - 90,
+        width: canvas.width * 0.25,
+        height: 25,
+        speed: canvas.width * 0.025,
+        targetX: canvas.width / 2 - (canvas.width * 0.25) / 2
+    };
+
+    ball = {
+        x: canvas.width / 2,
+        y: canvas.height - 110,
+        radius: canvas.width * 0.015,
+        dx: 0,
+        dy: 0,
+        speed: 5
+    };
+
+    // Цели масштабируем вместе с полем
+    targetRadius = canvas.width * 0.02; 
+    
+    const horizontalSpacePerBall = targetRadius * 2 + 25;
+    colsCount = Math.floor(canvas.width / horizontalSpacePerBall);
+    const totalGridWidth = colsCount * horizontalSpacePerBall - 25;
+    const startX = (canvas.width - totalGridWidth) / 2 + targetRadius;
+    const startY = 100;
+    const verticalStep = targetRadius * 2 + 25;
+
+    for (let r = 0; r < rowsCount; r++) {
+        for (let c = 0; c < colsCount; c++) {
+            const x = startX + c * horizontalSpacePerBall;
+            const y = startY + r * verticalStep;
+            const hue = 55 - r * 6; 
+            targets.push({ x, y, radius: targetRadius, status: 1, color: `hsl(${hue}, 90%, 55%)` });
+        }
+    }
+}
+
+// --- Адаптивная настройка размера (теперь она вызывает создание объектов) ---
+function resizeCanvas() {
+    const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
+    
+    let targetWidth = Math.min(wrapper.width, wrapper.height * 0.6); 
+    let targetHeight = targetWidth * (5/3);
+
+    if (targetHeight > wrapper.height) {
+        targetHeight = wrapper.height;
+        targetWidth = targetHeight * (3/5);
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = targetWidth * dpr;
+    canvas.height = targetHeight * dpr;
+    canvas.style.width = targetWidth + 'px';
+    canvas.style.height = targetHeight + 'px';
+    
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // ПЕРЕСОЗДАЕМ объекты под новый размер!
+    createObjects(); 
+}
+window.addEventListener('resize', resizeCanvas);
+
+// Вызываем ресайз один раз при старте, чтобы появились шарики
+resizeCanvas(); 
+
+
+// --- Рекорды ---
+function loadHighScores() {
+    return JSON.parse(localStorage.getItem('arkanoidVerticalFinal') || '[0,0,0,0,0]');
+}
+function saveHighScores(scores) {
+    localStorage.setItem('arkanoidVerticalFinal', JSON.stringify(scores));
+}
+function updateHighScoreUI() {
+    const scores = loadHighScores();
+    highScoreBoard.innerHTML = `Рекорд: ${scores[0] || '--'}`;
+}
+function checkNewHighScore(currentScore) {
+    let scores = loadHighScores();
+    if (currentScore > scores[scores.length - 1]) {
+        scores.push(currentScore);
+        scores.sort((a, b) => b - a);
+        scores.splice(5);
+        saveHighScores(scores);
+        updateHighScoreUI();
+    }
+}
+function renderLeaderboard() {
+    const scores = loadHighScores();
+    leaderboardList.innerHTML = '';
+    scores.forEach((s, index) => {
+        if (s === 0 && index > 0) return;
+        const item = document.createElement('div');
+        item.className = 'lb-item';
+        let rankText = '';
+        switch(index + 1) {
+            case 1: rankText = '🥇'; break;
+            case 2: rankText = '🥈'; break;
+            case 3: rankText = '🥉'; break;
+            default: rankText = `${index + 1}.`; break;
+        }
+        item.innerHTML = `<span class="lb-rank">${rankText}</span><span class="lb-score">${s} оч.</span>`;
+        leaderboardList.appendChild(item);
+    });
+}
+
+// --- Отрисовка ---
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 10);
+    ctx.fillStyle = '#FFF';
+    ctx.fill();
+    ctx.closePath();
+    
+    ctx.beginPath();
+    ctx.roundRect(paddle.targetX, paddle.y, paddle.width, paddle.height, 10);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFF';
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawTargets() {
+    targets.forEach(target => {
+        if (target.status === 1) {
+            ctx.beginPath();
+            ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
+            ctx.fillStyle = target.color;
+            ctx.shadowColor = target.color;
+            ctx.shadowBlur = 18;
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+    });
+}
+
+// --- Игровая логика ---
+function movePaddleTo(x) {
+    if (isGameOver) return;
+    paddle.targetX = Math.max(0, Math.min(x - paddle.width / 2, canvas.width - paddle.width));
+}
+
+function updatePaddlePosition() {
+    const diff = paddle.targetX - paddle.x;
+    paddle.x += diff * 0.18;
+}
+
+function circleCollision(circleX, circleY, circleR, targetX, targetY, targetR) {
+    const distanceSq = (circleX - targetX)**2 + (circleY - targetY)**2;
+    const radiiSum = circleR + targetR;
+    return distanceSq < radiiSum * radiiSum;
+}
+
+function resolveWallCollisions() {
+    if (ball.x + ball.dx > canvas.width - ball.radius || ball.x + ball.dx < ball.radius) {
+        ball.dx = -ball.dx;
+    }
+    if (ball.y + ball.dy < ball.radius) {
+        ball.dy = -ball.dy;
+    }
+}
+
+function collisionDetection() {
+    resolveWallCollisions();
+
+    if (ball.y + ball.dy > canvas.height - ball.radius - paddle.height) {
+        if (ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+            let hitPos = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+            ball.dx = hitPos * 7;
+            ball.dy = -Math.abs(ball.dy) * 1.05;
+            if (Math.abs(ball.dx) > 9) ball.dx = ball.dx > 0 ? 9 : -9;
+        }
+    }
+
+    if (ball.y - ball.radius > canvas.height) {
+        endGame();
+        return;
+    }
+
+    targets.forEach(target => {
+        if (target.status === 1 && circleCollision(ball.x, ball.y, ball.radius, target.x, target.y, target.radius)) {
+            target.status = 0;
+            const absDX = Math.abs(ball.x - target.x);
+            const absDY = Math.abs(ball.y - target.y);
+            if (absDX > absDY) {
+                ball.dx = -ball.dx;
+            } else {
+                ball.dy = -ball.dy;
+            }
+            score += 10;
+            scoreBoard.innerHTML = 'Счет: ' + score;
+        }
+    });
+
+    if (targets.every(t => t.status === 0)) {
+        alert('ПОБЕДА! Вы прошли башню!');
+        resetGame();
+    }
+}
+
+function endGame() {
+    cancelAnimationFrame(animationFrameId);
+    isGameOver = true;
+    checkNewHighScore(score);
+    finalScoreText.innerHTML = `Вы набрали: ${score} очков`;
+    renderLeaderboard();
+    gameOverOverlay.style.display = 'flex';
+    touchHint.style.display = 'none';
+}
+
+function resetGame() {
+    score = 0;
+    isGameOver = false;
+    scoreBoard.innerHTML = 'Счет: 0';
+    
+    // Сбрасываем позиции согласно НОВОМУ размеру canvas
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height - 110;
+    ball.dx = 0;
+    ball.dy = 0;
+    
+    paddle.x = canvas.width / 2 - paddle.width / 2;
+    paddle.targetX = paddle.x;
+    
+    createObjects(); // Пересоздаем сетку шариков заново
+    gameOverOverlay.style.display = 'none';
+    touchHint.style.display = 'block';
+}
+
+// --- Главный цикл ---
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    updatePaddlePosition();
+    
+    drawTargets();
+    drawBall();
+    drawPaddle();
+    
+    if (!isGameOver) {
+        collisionDetection();
+        if (ball.dx !== 0 || ball.dy !== 0) {
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+        }
+        animationFrameId = requestAnimationFrame(loop);
+    }
+}
+
+// --- Управление ---
+let lastTouchX = 0;
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    lastTouchX = touch.clientX - rect.left;
+    
+    if (!isGameOver && ball.dx === 0 && ball.dy === 0) {
+        ball.dx = 4 * (Math.random() > 0.5 ? 1 : -1);
+        ball.dy = -ball.speed;
+    }
+    
+    movePaddleTo(lastTouchX);
+    isDragging = true;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    lastTouchX = touch.clientX - rect.left;
+    movePaddleTo(lastTouchX);
+});
+
+canvas.addEventListener('touchend', () => {
+    isDragging = false;
+});
+
+// --- Запуск игры ---
+updateHighScoreUI();
+loop();
+
+restartBtn.addEventListener('click', () => {
+    resetGame();
+    loop();
+});
+</script>
+
+</body>
+</html>
