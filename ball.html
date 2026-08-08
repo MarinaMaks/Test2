@@ -1,65 +1,409 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <title>Шарик: левая и правая стороны одинаковые, без пролётов</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: #0d0d0d;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-      user-select: none;
-    }
-    #game {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-    }
-    .ball { const dx = ballX - t.x;
-        const dy = ballY - t.y;
-        const distance = Math.sqrt(dx*dx + dy*dy);
-        if (distance < 22) {
-          t.active = false;
-          t.el.style.opacity = '0';
-          t.el.style.pointerEvents = 'none';
-          score += 10;
-          scoreEl.textContent = 'Счёт: ' + score;
-          if (Math.random() > 0.5) ballVx *= -1; else ballVy *= -1;
+    <meta charset="UTF-8">
+    <title>Арканоид: Сетка</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            overflow: hidden;
         }
-      }
-
-      // Подсчёт рядов
-      const activeRows = new Set();
-      for (const t of targets) if (t.active) activeRows.add(t.row);
-      const destroyedRowsCount = rows - activeRows.size;
-      updateProgress(destroyedRowsCount);
-
-      // Ускорение
-      if (destroyedRowsCount > 0) {
-        const speedBoost = 1 + (destroyedRowsCount * 0.15);
-        const currentSpeed = Math.sqrt(ballVx*ballVx + ballVy*ballVy);
-        const newSpeed = currentSpeed * speedBoost;
-        const norm = Math.sqrt(ballVx*ballVx + ballVy*ballVy);
-        if (norm > 0) {
-          ballVx = (ballVx / norm) * newSpeed;
-          ballVy = (ballVy / norm) * newSpeed;
+        
+        canvas {
+            background-color: #000;
+            border: 3px solid #FFD700;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
         }
-      }
 
-      ball.style.left = ballX + 'px';
-      ball.style.top = ballY + 'px';
+        #uiContainer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+            z-index: 10;
+        }
+        #scoreBoard, #highScoreBoard {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 18px;
+            border: 1px solid #444;
+        }
 
-      animationId = requestAnimationFrame(animate);
+        #gameOverOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 20;
+            color: #fff;
+            text-align: center;
+        }
+        #finalScoreText {
+            font-size: 24px;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+        #leaderboardBox {
+            background: rgba(20, 20, 20, 0.8);
+            padding: 20px 30px;
+            border-radius: 10px;
+            border: 1px solid #FFD700;
+        }
+        #leaderboardTitle {
+            font-size: 22px;
+            margin-bottom: 15px;
+            color: #FFD700;
+        }
+        .lb-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 18px;
+            border-bottom: 1px dashed #444;
+        }
+        .lb-item:last-child { border-bottom: none; }
+        .lb-rank { font-weight: bold; color: #aaa; min-width: 25px; }
+        .lb-score { font-weight: bold; }
+
+        #restartBtn {
+            padding: 12px 30px;
+            font-size: 18px;
+            background: #FFD700;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+        #restartBtn:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+<div id="uiContainer">
+    <div id="scoreBoard">Очки: 0</div>
+    <div id="highScoreBoard">Рекорд: --</div>
+</div>
+
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+
+<div id="gameOverOverlay">
+    <h1 style="font-size: 48px; margin: 0;">Конец игры</h1>
+    <div id="finalScoreText"></div>
+    
+    <div id="leaderboardBox">
+        <div id="leaderboardTitle">Лучшие результаты:</div>
+        <div id="leaderboardList"></div>
+    </div>
+    
+    <button id="restartBtn">Играть снова</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreBoard = document.getElementById('scoreBoard');
+const highScoreBoard = document.getElementById('highScoreBoard');
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const finalScoreText = document.getElementById('finalScoreText');
+const restartBtn = document.getElementById('restartBtn');
+const leaderboardList = document.getElementById('leaderboardList');
+
+// --- Объекты ---
+const paddle = {
+    x: canvas.width / 2 - 60,
+    y: canvas.height - 30,
+    width: 120,
+    height: 15,
+    speed: 10
+};
+
+const ball = {
+    x: canvas.width / 2,
+    y: canvas.height - 45,
+    radius: 10,
+    dx: 5 * (Math.random() > 0.5 ? 1 : -1),
+    dy: -5,
+    speed: 5
+};
+
+let targets = [];
+// Уменьшен размер шара цели с 20 до 15 пикселей
+const targetRadius = 15; 
+const rowsCount = 6;
+let colsCount = 0;
+
+let score = 0;
+let isGameOver = false;
+let animationFrameId = null;
+
+// --- Рекорды ---
+function loadHighScores() {
+    const saved = localStorage.getItem('arkanoidHighScores');
+    return saved ? JSON.parse(saved) : [0, 0, 0, 0, 0];
+}
+
+function saveHighScores(scores) {
+    localStorage.setItem('arkanoidHighScores', JSON.stringify(scores));
+}
+
+function updateHighScoreUI() {
+    const scores = loadHighScores();
+    // Если рекорд нулевой, не показываем его как "0", чтобы не путать игрока
+    highScoreBoard.innerHTML = `Рекорд: ${scores[0] || '--'}`;
+}
+
+function checkNewHighScore(currentScore) {
+    let scores = loadHighScores();
+    if (currentScore > scores[scores.length - 1]) {
+        scores.push(currentScore);
+        scores.sort((a, b) => b - a);
+        scores.splice(5); // Оставляем только топ-5
+        saveHighScores(scores);
+        updateHighScoreUI();
+    }
+}
+
+// Отрисовка таблицы рекордов внутри оверлея
+function renderLeaderboard() {
+    const scores = loadHighScores();
+    leaderboardList.innerHTML = ''; // Очищаем перед заполнением
+
+    scores.forEach((s, index) => {
+        // Не выводим пустые места (нули), если игр еще было мало
+        if (s === 0 && index > 0) return; 
+        
+        const item = document.createElement('div');
+        item.className = 'lb-item';
+        
+        // Определяем место (1st, 2nd...)
+        let rankText = '';
+        switch(index + 1) {
+            case 1: rankText = '🥇'; break;
+            case 2: rankText = '🥈'; break;
+            case 3: rankText = '🥉'; break;
+            default: rankText = `${index + 1}.`; break;
+        }
+
+        item.innerHTML = `<span class="lb-rank">${rankText}</span><span class="lb-score">${s} очков</span>`;
+        leaderboardList.appendChild(item);
+    });
+}
+
+// --- Создание целей ---
+function createTargets() {
+    targets = [];
+    
+    // Увеличено расстояние между шарами для маневренности (с 15 до 25)
+    const horizontalSpacePerBall = targetRadius * 2 + 25; 
+    colsCount = Math.floor((canvas.width - 60) / horizontalSpacePerBall);
+    
+    const totalGridWidth = colsCount * horizontalSpacePerBall - 25;
+    const startX = (canvas.width - totalGridWidth) / 2 + targetRadius;
+    const startY = 60;
+    const verticalStep = targetRadius * 2 + 25;
+
+    for (let r = 0; r < rowsCount; r++) {
+        for (let c = 0; c < colsCount; c++) {
+            const x = startX + c * horizontalSpacePerBall;
+            const y = startY + r * verticalStep;
+            
+            const hue = 50 - r * 7; 
+            const saturation = 90;
+            const lightness = 55;
+            
+            targets.push({ 
+                x, 
+                y, 
+                radius: targetRadius, 
+                status: 1,
+                color: `hsl(${hue}, ${saturation}%, ${lightness}%)` 
+            });
+        }
+    }
+}
+
+// --- Отрисовка ---
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 5);
+    ctx.fillStyle = '#FFF';
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFF';
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawTargets() {
+    targets.forEach(target => {
+        if (target.status === 1) {
+            ctx.beginPath();
+            ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
+            ctx.fillStyle = target.color;
+            ctx.shadowColor = target.color;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+    });
+}
+
+// --- Игровая логика ---
+function movePaddle(e) {
+    if (isGameOver) return;
+    const rect = canvas.getBoundingClientRect();
+    let mouseX = e.clientX - rect.left;
+    paddle.x = Math.max(0, Math.min(mouseX - paddle.width / 2, canvas.width - paddle.width));
+}
+
+function circleCollision(circleX, circleY, circleR, targetX, targetY, targetR) {
+    const distX = circleX - targetX;
+    const distY = circleY - targetY;
+    const distance = Math.sqrt(distX * distX + distY * distY);
+    return distance < circleR + targetR;
+}
+
+function resolveWallCollisions() {
+    if (ball.x + ball.dx > canvas.width - ball.radius || ball.x + ball.dx < ball.radius) {
+        ball.dx = -ball.dx;
+    }
+    if (ball.y + ball.dy < ball.radius) {
+        ball.dy = -ball.dy;
+    }
+}
+
+function collisionDetection() {
+    resolveWallCollisions();
+
+    if (ball.y + ball.dy > canvas.height - ball.radius - paddle.height) {
+        if (ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+            let hitPos = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+            ball.dx = hitPos * 5;
+            ball.dy = -ball.speed * 1.1;
+            if (Math.abs(ball.dx) > 7) {
+                ball.dx = ball.dx > 0 ? 7 : -7;
+            }
+        }
     }
 
-    restartBtn.addEventListener('click', resetGame);
-    resetGame();
-  </script>
+    if (ball.y - ball.radius > canvas.height) {
+        endGame();
+    }
+
+    targets.forEach(target => {
+        if (target.status === 1 && circleCollision(ball.x, ball.y, ball.radius, target.x, target.y, target.radius)) {
+            target.status = 0;
+            const absDX = Math.abs(ball.x - target.x);
+            const absDY = Math.abs(ball.y - target.y);
+            if (absDX > absDY) {
+                ball.dx = -ball.dx;
+            } else {
+                ball.dy = -ball.dy;
+            }
+            score += 10;
+            scoreBoard.innerHTML = 'Очки: ' + score;
+        }
+    });
+
+    const remaining = targets.filter(t => t.status === 1).length;
+    if (remaining === 0) {
+        alert('ПОБЕДА! Все шары разбиты.');
+        resetGame();
+    }
+}
+
+function endGame() {
+    cancelAnimationFrame(animationFrameId);
+    isGameOver = true;
+    checkNewHighScore(score);
+    
+    finalScoreText.innerHTML = `Вы набрали: ${score} очков`;
+    
+    // Обновляем и отрисовываем рейтинг прямо перед показом экрана
+    renderLeaderboard(); 
+    
+    gameOverOverlay.style.display = 'flex';
+}
+
+function resetGame() {
+    score = 0;
+    isGameOver = false;
+    scoreBoard.innerHTML = 'Очки: 0';
+    
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height - 45;
+    ball.dx = ball.speed * (Math.random() > 0.5 ? 1 : -1);
+    ball.dy = -ball.speed;
+    
+    paddle.x = canvas.width / 2 - paddle.width / 2;
+    
+    createTargets();
+    gameOverOverlay.style.display = 'none';
+    loop();
+}
+
+// --- Главный цикл ---
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    drawTargets();
+    drawBall();
+    drawPaddle();
+    
+    collisionDetection();
+    
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+    
+    if (!isGameOver) {
+        animationFrameId = requestAnimationFrame(loop);
+    }
+}
+
+// --- Инициализация ---
+createTargets();
+updateHighScoreUI();
+loop();
+
+// --- Управление ---
+canvas.addEventListener('mousemove', movePaddle);
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    movePaddle(e.touches[0]);
+}, { passive: false });
+
+restartBtn.addEventListener('click', resetGame);
+</script>
+
 </body>
-</html>
-
-
 </html>
