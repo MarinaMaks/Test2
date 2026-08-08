@@ -191,47 +191,41 @@ const restartBtn = document.getElementById('restartBtn');
 const leaderboardList = document.getElementById('leaderboardList');
 const touchHint = document.getElementById('touchHint');
 
-// --- Глобальные переменные объектов (пустые шаблоны) ---
-let paddle = {};
-let ball = {};
-let targets = [];
+// --- Глобальные переменные ---
+let paddle = {}, ball = {}, targets = [];
 let targetRadius = 0;
 const rowsCount = 8;
 let colsCount = 0;
+let score = 0, isGameOver = false, animationFrameId = null, isDragging = false;
 
-let score = 0;
-let isGameOver = false;
-let animationFrameId = null;
-let isDragging = false;
-
-// --- Функция создания ВСЕХ объектов на основе текущего размера Canvas ---
+// --- Функция создания объектов (теперь она вызывается ТОЛЬКО после того, как Canvas готов) ---
 function createObjects() {
-    // Очищаем старые цели перед перерасчетом
     targets = []; 
-
-    const dpr = window.devicePixelRatio || 1;
     
-    // Ракетка привязана к низу видимой области
+    // Размеры ВСЕГО зависят только от текущей ширины канваса
+    const basePaddleWidthRatio = 0.25;
+    const baseBallRadiusRatio = 0.015;
+    const baseTargetRadiusRatio = 0.02;
+
     paddle = {
-        x: canvas.width / 2 - (canvas.width * 0.25) / 2,
+        x: canvas.width / 2 - (canvas.width * basePaddleWidthRatio) / 2,
         y: canvas.height - 90,
-        width: canvas.width * 0.25,
+        width: canvas.width * basePaddleWidthRatio,
         height: 25,
         speed: canvas.width * 0.025,
-        targetX: canvas.width / 2 - (canvas.width * 0.25) / 2
+        targetX: canvas.width / 2 - (canvas.width * basePaddleWidthRatio) / 2
     };
 
     ball = {
         x: canvas.width / 2,
         y: canvas.height - 110,
-        radius: canvas.width * 0.015,
+        radius: canvas.width * baseBallRadiusRatio,
         dx: 0,
         dy: 0,
         speed: 5
     };
 
-    // Цели масштабируем вместе с полем
-    targetRadius = canvas.width * 0.02; 
+    targetRadius = canvas.width * baseTargetRadiusRatio;
     
     const horizontalSpacePerBall = targetRadius * 2 + 25;
     colsCount = Math.floor(canvas.width / horizontalSpacePerBall);
@@ -250,32 +244,39 @@ function createObjects() {
     }
 }
 
-// --- Адаптивная настройка размера (теперь она вызывает создание объектов) ---
+// --- Адаптивная настройка размера (ФИНАЛЬНАЯ) ---
 function resizeCanvas() {
     const wrapper = document.querySelector('.game-wrapper').getBoundingClientRect();
     
-    let targetWidth = Math.min(wrapper.width, wrapper.height * 0.6); 
-    let targetHeight = targetWidth * (5/3);
+    // Шаг 1: Пытаемся вписаться по высоте
+    let availableHeight = wrapper.height;
+    let targetHeight = availableHeight;
+    let targetWidth = targetHeight * (3/5); // Соотношение 3:5
 
-    if (targetHeight > wrapper.height) {
-        targetHeight = wrapper.height;
-        targetWidth = targetHeight * (3/5);
+    // Шаг 2: Проверка "Вылезает ли вправо?"
+    if (targetWidth > wrapper.width) {
+        // Если вылезает — фиксируемся по ширине
+        targetWidth = wrapper.width;
+        targetHeight = targetWidth * (5/3); 
     }
 
+    // Устанавливаем реальные пиксели для четкости
     const dpr = window.devicePixelRatio || 1;
     canvas.width = targetWidth * dpr;
     canvas.height = targetHeight * dpr;
+    
+    // Масштабируем CSS-отображение под размер обертки
     canvas.style.width = targetWidth + 'px';
     canvas.style.height = targetHeight + 'px';
     
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // ПЕРЕСОЗДАЕМ объекты под новый размер!
+    // Пересоздаем игровые сущности под новый физический размер
     createObjects(); 
 }
 window.addEventListener('resize', resizeCanvas);
 
-// Вызываем ресайз один раз при старте, чтобы появились шарики
+// Запуск цепочки инициализации
 resizeCanvas(); 
 
 
@@ -436,7 +437,6 @@ function resetGame() {
     isGameOver = false;
     scoreBoard.innerHTML = 'Счет: 0';
     
-    // Сбрасываем позиции согласно НОВОМУ размеру canvas
     ball.x = canvas.width / 2;
     ball.y = canvas.height - 110;
     ball.dx = 0;
@@ -445,7 +445,7 @@ function resetGame() {
     paddle.x = canvas.width / 2 - paddle.width / 2;
     paddle.targetX = paddle.x;
     
-    createObjects(); // Пересоздаем сетку шариков заново
+    createObjects(); 
     gameOverOverlay.style.display = 'none';
     touchHint.style.display = 'block';
 }
@@ -501,7 +501,7 @@ canvas.addEventListener('touchend', () => {
     isDragging = false;
 });
 
-// --- Запуск игры ---
+// --- Запуск ---
 updateHighScoreUI();
 loop();
 
