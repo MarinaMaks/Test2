@@ -2,9 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Арканоид: Вертикальный</title>
+    <title>Арканоид: Вертикальный Фикс</title>
     
-    <!-- Запрещаем зум -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -20,7 +19,6 @@
             overflow: hidden;
         }
         
-        /* Контейнер теперь подстраивается под высоту, ширина считается */
         .game-wrapper {
             width: 100%;
             height: 100dvh;
@@ -161,28 +159,29 @@ let targetRadius = 0;
 const rowsCount = 6; 
 let colsCount = 0;
 
-// --- Масштабирование (Исправлено для предотвращения расползания) ---
+// --- Масштабирование (ИСПРАВЛЕНО ДЛЯ VisualViewport) ---
 function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     
-    // Берем доступную видимую высоту
-    let availableHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    
-    // Базовый дизайн игры (вертикальный)
+    // Используем ТОЛЬКО реальную видимую область окна
+    let visualHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    let visualWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+
+    // Базовый дизайн игры
     const BASE_WIDTH = 320;
     const BASE_HEIGHT = 568;
 
-    // Вычисляем ширину исходя из высоты, чтобы сохранить пропорции
-    let targetWidth = Math.round(BASE_WIDTH * (availableHeight / BASE_HEIGHT));
-    let targetHeight = availableHeight;
+    // Считаем размеры под доступное место
+    let targetHeight = Math.round(visualHeight);
+    let targetWidth = Math.round(BASE_WIDTH * (targetHeight / BASE_HEIGHT));
 
-    // Ограничение: если экран очень широкий (планшет), не делаем игру слишком огромной
-    if (targetWidth > window.innerWidth) {
-        targetWidth = window.innerWidth;
+    // Ограничение ширины (если экран шире базы)
+    if (targetWidth > visualWidth) {
+        targetWidth = visualWidth;
         targetHeight = Math.round(targetWidth * (BASE_HEIGHT / BASE_WIDTH));
     }
 
-    // Устанавливаем физический размер пикселей
+    // Устанавливаем физический размер пикселей канваса
     canvas.width = Math.round(targetWidth * dpr);
     canvas.height = Math.round(targetHeight * dpr);
     
@@ -206,7 +205,7 @@ function createObjects() {
 
     paddle = {
         x: cw / 2 - (cw * 0.25) / 2,
-        y: ch - 80,
+        y: ch - 80, /* Ракетка всегда у низа логического холста */
         width: cw * 0.25,
         height: 20,
         speed: 8,
