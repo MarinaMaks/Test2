@@ -35,7 +35,7 @@
             box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
             max-width: 100%;
             max-height: 100%;
-            aspect-ratio: 9 / 16; /* Строго вертикальное поле */
+            aspect-ratio: 9 / 16; 
         }
 
         #uiContainer {
@@ -159,33 +159,28 @@ let targetRadius = 0;
 const rowsCount = 6; 
 let colsCount = 0;
 
-// --- Масштабирование (ИСПРАВЛЕНО ДЛЯ VisualViewport) ---
+// --- Масштабирование ---
 function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     
-    // Используем ТОЛЬКО реальную видимую область окна
+    // Берем реальную видимую область без плавающих панелей
     let visualHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     let visualWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
 
-    // Базовый дизайн игры
     const BASE_WIDTH = 320;
     const BASE_HEIGHT = 568;
 
-    // Считаем размеры под доступное место
     let targetHeight = Math.round(visualHeight);
     let targetWidth = Math.round(BASE_WIDTH * (targetHeight / BASE_HEIGHT));
 
-    // Ограничение ширины (если экран шире базы)
     if (targetWidth > visualWidth) {
         targetWidth = visualWidth;
         targetHeight = Math.round(targetWidth * (BASE_HEIGHT / BASE_WIDTH));
     }
 
-    // Устанавливаем физический размер пикселей канваса
     canvas.width = Math.round(targetWidth * dpr);
     canvas.height = Math.round(targetHeight * dpr);
     
-    // Растягиваем CSS-блок ровно по вычисленным размерам
     canvas.style.width = targetWidth + 'px';
     canvas.style.height = targetHeight + 'px';
     
@@ -196,16 +191,24 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// --- Создание объектов (привязка к реальному размеру Canvas) ---
+// --- Создание объектов ---
 function createObjects() {
     targets = []; 
     
     const cw = canvas.width;
     const ch = canvas.height;
 
+    /* Получаем реальные пиксели нижней границы видимого окна */
+    const viewport = window.visualViewport;
+    const visibleBottomY = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+    
+    /* Считаем отступ от низа относительно РЕАЛЬНОГО окна, а не высоты холста */
+    const offsetFromScreenBottom = 80; 
+    const rocketLogicalOffset = Math.round((offsetFromScreenBottom / window.innerHeight) * ch);
+
     paddle = {
         x: cw / 2 - (cw * 0.25) / 2,
-        y: ch - 80, /* Ракетка всегда у низа логического холста */
+        y: ch - rocketLogicalOffset, /* Теперь она всегда над низом экрана */
         width: cw * 0.25,
         height: 20,
         speed: 8,
@@ -214,7 +217,7 @@ function createObjects() {
 
     ball = {
         x: cw / 2,
-        y: ch - 100,
+        y: paddle.y - 30, /* Шарик чуть выше ракетки */
         radius: 10,
         dx: 0,
         dy: 0,
@@ -260,6 +263,7 @@ function resolveWallCollisions() { if(ball.x+ball.dx>canvas.width-ball.radius||b
 
 function collisionDetection() {
     resolveWallCollisions();
+    
     if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){
         if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){
             let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2);
@@ -268,7 +272,9 @@ function collisionDetection() {
             if(Math.abs(ball.dx)>9) ball.dx=ball.dx>0?9:-9;
         }
     }
+    
     if(ball.y-ball.radius>canvas.height){ endGame(); return; }
+    
     targets.forEach(target=>{
         if(target.status===1&&circleCollision(ball.x,ball.y,ball.radius,target.x,target.y,target.radius)){
             target.status=0;
@@ -278,10 +284,11 @@ function collisionDetection() {
             scoreBoard.innerHTML='Счет: '+score;
         }
     });
+    
     if(targets.every(t=>t.status===0)){ alert('ПОБЕДА!'); resetGame(); }
 }
 function endGame() { cancelAnimationFrame(animationFrameId); isGameOver=true; checkNewHighScore(score); finalScoreText.innerHTML=`Вы набрали: ${score} очков`; renderLeaderboard(); gameOverOverlay.style.display='flex'; touchHint.style.display='none'; }
-function resetGame() { score=0; isGameOver=false; scoreBoard.innerHTML='Счет: 0'; ball.x=canvas.width/2; ball.y=canvas.height-100; ball.dx=0; ball.dy=0; paddle.x=canvas.width/2-paddle.width/2; paddle.targetX=paddle.x; createObjects(); gameOverOverlay.style.display='none'; touchHint.style.display='block'; }
+function resetGame() { score=0; isGameOver=false; scoreBoard.innerHTML='Счет: 0'; ball.x=canvas.width/2; ball.y=paddle.y - 30; ball.dx=0; ball.dy=0; paddle.x=canvas.width/2-paddle.width/2; paddle.targetX=paddle.x; createObjects(); gameOverOverlay.style.display='none'; touchHint.style.display='block'; }
 function loop() { ctx.clearRect(0,0,canvas.width,canvas.height); updatePaddlePosition(); drawTargets(); drawBall(); drawPaddle(); if(!isGameOver){ collisionDetection(); if(ball.dx!==0||ball.dy!==0){ ball.x+=ball.dx; ball.y+=ball.dy; } animationFrameId=requestAnimationFrame(loop); } }
 
 // --- Управление ---
