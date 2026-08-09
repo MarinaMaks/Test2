@@ -169,17 +169,19 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// --- Создание объектов (ИСПРАВЛЕНО ПОРЯДОК ОБЪЯВЛЕНИЯ) ---
+// --- Создание объектов ---
 function createObjects() {
     targets = []; 
     
     const cw = canvas.width;
     const ch = canvas.height;
 
-    /* Сначала полностью создаем объект со ВСЕМИ свойствами */
+    /* Координата Y теперь рассчитывается от ВИДИМОЙ высоты контейнера */
+    const frame = document.getElementById('gameFrame').getBoundingClientRect();
+    
     paddle = {
         x: cw / 2 - (cw * 0.25) / 2,
-        y: ch - 70,
+        y: ch - Math.round((ch / frame.height) * 70), /* Привязка к видимому низу */
         width: cw * 0.25,
         height: 20,
         speed: 8,
@@ -188,7 +190,7 @@ function createObjects() {
 
     ball = {
         x: cw / 2,
-        y: ch - 90,
+        y: ch - Math.round((ch / frame.height) * 90),
         radius: 10,
         dx: 0,
         dy: 0,
@@ -232,11 +234,10 @@ function updatePaddlePosition() { const diff = paddle.targetX - paddle.x; paddle
 function circleCollision(cX,cY,cR,tX,tY,tR) { return (cX-tX)**2 + (cY-tY)**2 < (cR+tR)**2; }
 function resolveWallCollisions() { if(ball.x+ball.dx>canvas.width-ball.radius||ball.x+ball.dx<ball.radius) ball.dx=-ball.dx; if(ball.y+ball.dy<ball.radius) ball.dy=-ball.dy; }
 
-/* ИСПРАВЛЕНО: используем готовое свойство paddle.height */
+/* Используем готовое свойство для проверки столкновений */
 function collisionDetection() {
     resolveWallCollisions();
     
-    /* Теперь paddle.height существует, ошибки нет */
     if(ball.y+ball.dy>canvas.height-ball.radius-paddle.height){
         if(ball.x>paddle.x&&ball.x<paddle.x+paddle.width){
             let hitPos=(ball.x-(paddle.x+paddle.width/2))/(paddle.width/2);
